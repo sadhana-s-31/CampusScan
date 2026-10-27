@@ -273,6 +273,76 @@ def get_student(student_id):
             }), 200
 
 
+@app.route('/api/students/add', methods=['POST'])
+@app.route('/api/students', methods=['POST'])
+def api_add_student():
+    """
+    API endpoint: Add new student record with optional profile photograph.
+    Accepts both multipart/form-data and JSON payloads for mobile app and API integration.
+    """
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        student_id = data.get('student_id', '').strip().upper()
+        name = data.get('name', '').strip()
+        photo_file = None
+    else:
+        student_id = request.form.get('student_id', '').strip().upper()
+        name = request.form.get('name', '').strip()
+        photo_file = request.files.get('photo')
+
+    if not student_id or not name:
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'message': 'Student ID and Full Name are both required.'
+        }), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT student_id FROM students WHERE UPPER(student_id) = ?", (student_id,))
+        if cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'status': 'exists',
+                'message': f"Student with ID '{student_id}' already exists."
+            }), 409
+
+        photo_filename = None
+        if photo_file and photo_file.filename:
+            _, ext = os.path.splitext(photo_file.filename)
+            ext = ext.lower()
+            if ext in ALLOWED_IMAGE_EXTENSIONS:
+                safe_filename = f"{student_id}{ext}"
+                dest_path = os.path.join(STUDENTS_DIR, safe_filename)
+                photo_file.save(dest_path)
+                photo_filename = safe_filename
+            else:
+                return jsonify({
+                    'success': False,
+                    'status': 'error',
+                    'message': 'Invalid image format. Supported formats: JPG, JPEG, PNG, WEBP.'
+                }), 400
+
+        cursor.execute(
+            "INSERT INTO students (student_id, name, photo_filename) VALUES (?, ?, ?)",
+            (student_id, name, photo_filename)
+        )
+        conn.commit()
+
+    photo_url = get_photo_url(student_id)
+    return jsonify({
+        'success': True,
+        'status': 'created',
+        'message': f"Student '{name}' ({student_id}) added successfully!",
+        'student': {
+            'student_id': student_id,
+            'name': name,
+            'photo_url': photo_url,
+            'has_photo': find_student_photo_file(student_id) is not None
+        }
+    }), 201
+
+
 @app.route('/api/register', methods=['POST'])
 def register_student():
     """

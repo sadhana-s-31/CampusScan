@@ -24,3 +24,13 @@ data/uploads/*
 Thumbs.db
 .vscode/
 .idea/
+
+# Flutter / Mobile Build Artifacts & Unused Platforms
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins-dependencies
+mobile/windows/
+mobile/linux/
+mobile/macos/
+*.apk
+*.aab

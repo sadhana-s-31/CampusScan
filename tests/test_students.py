@@ -172,6 +172,23 @@ class TestStudentManagement(unittest.TestCase):
             self.assertEqual(response.status_code, 302, f"Endpoint {endpoint} was not protected!")
             self.assertIn('/login', response.headers.get('Location', ''))
 
+    def test_7_api_add_student_with_photo(self):
+        """Test adding student with optional photo via public API without session cookies."""
+        import json
+        dummy_img = io.BytesIO(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb\x00C\x00")
+        response = self.client.post('/api/students/add', data={
+            'student_id': 'API_STUDENT_01',
+            'name': 'API Test Student',
+            'photo': (dummy_img, 'profile.jpg')
+        }, content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 201)
+        res_data = json.loads(response.data.decode('utf-8'))
+        self.assertTrue(res_data['success'])
+        self.assertEqual(res_data['student']['student_id'], 'API_STUDENT_01')
+        self.assertEqual(res_data['student']['name'], 'API Test Student')
+
 
 if __name__ == '__main__':
     unittest.main()
+
