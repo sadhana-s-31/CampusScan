@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CampusScan — Smart Student Barcode Registration System{% endblock %}</title>
+  <meta name="description" content="College student registration system via ID card barcode scanner with duplicate prevention.">
+  
+  <!-- Modern Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  
+  <!-- Favicon & PWA Mobile App Support -->
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/logo.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/logo.svg') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="{{ url_for('index') }}" class="nav-brand">
+        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="CampusScan Logo" class="brand-logo">
+        <div class="brand-text">
+          <h1>CampusScan</h1>
+          <span>Student Barcode Registration</span>
+        </div>
+      </a>
+
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation menu">
+        &#9776;
+      </button>
+
+      <nav>
+        <ul class="nav-links" id="nav-links">
+          <li>
+            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+              <span>📷</span> Scanner
+            </a>
+          </li>
+          {% if session.get('admin_logged_in') %}
+            <li>
+              <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                <span>📊</span> Dashboard
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('records') }}" class="nav-link {% if request.endpoint == 'records' %}active{% endif %}">
+                <span>👥</span> Student Records
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('logout') }}" class="nav-link btn-sm btn-outline">
+                <span>🚪</span> Logout ({{ session.get('admin_username') }})
+              </a>
+            </li>
+          {% else %}
+            <li>
+              <a href="{{ url_for('login') }}" class="nav-link {% if request.endpoint == 'login' %}active{% endif %}">
+                <span>🔒</span> Admin Login
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Flash Messages -->
+  <div class="main-content" style="padding-bottom: 0;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <span>{{ message }}</span>
+              <button class="alert-close" onclick="this.parentElement.remove();">&times;</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Page Content -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div>
+        <strong>CampusScan</strong> &copy; 2026 — Smart Student Barcode Registration System
+      </div>
+      <div>
+        <span>🔒 Secure Verification &bull; Anti-Duplicate Guaranteed &bull; SQLite WAL</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Base Mobile Nav Toggle Script & PWA Service Worker Registration -->
+  <script>
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+    if (navToggle && navLinks) {
+      navToggle.addEventListener('click', () => {
+        navLinks.classList.toggle('show');
+      });
+    }
+
+    // Register Service Worker for Mobile PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js').catch(err => {
+          console.log('SW registration note:', err);
+        });
+      });
+    }
+  </script>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

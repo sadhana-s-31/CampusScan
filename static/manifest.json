@@ -1,0 +1,16 @@
+{
+  "name": "CampusScan — Student Barcode Registration",
+  "short_name": "CampusScan",
+  "description": "Smart College Student Barcode Registration System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/static/images/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

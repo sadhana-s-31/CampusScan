@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Administrator Login — CampusScan{% endblock %}
+
+{% block content %}
+<div style="max-width: 440px; margin: 2.5rem auto;">
+  <div class="card" style="box-shadow: var(--shadow-lg); border-top: 4px solid var(--primary);">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+      <div style="width: 56px; height: 56px; background: #eff6ff; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin: 0 auto 0.75rem;">
+        🔒
+      </div>
+      <h1 style="font-size: 1.45rem; font-weight: 700; color: var(--primary-dark);">Admin Portal</h1>
+      <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">
+        Authenticate to access student records and dashboards
+      </p>
+    </div>
+
+    <form method="POST" action="{{ url_for('login') }}">
+      {% if request.args.get('next') %}
+        <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+      {% endif %}
+
+      <div class="form-group">
+        <label for="username" class="form-label">Administrator Username</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          class="form-control" 
+          placeholder="admin" 
+          required 
+          autofocus
+        >
+      </div>
+
+      <div class="form-group">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label for="password" class="form-label">Password</label>
+          <button type="button" onclick="togglePasswordVisibility()" style="background: none; border: none; font-size: 0.8rem; color: var(--primary-light); cursor: pointer;">
+            <span id="pwd-toggle-text">Show</span>
+          </button>
+        </div>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-control" 
+          placeholder="••••••••" 
+          required
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 0.5rem;">
+        <span>🔐</span> Sign In
+      </button>
+    </form>
+
+    <!-- Development Notice Callout -->
+    <div style="margin-top: 1.75rem; padding: 0.85rem; background: var(--bg-main); border: 1px dashed var(--border); border-radius: var(--radius-md); font-size: 0.825rem; color: var(--text-muted);">
+      <strong>🛠️ Development Credentials:</strong>
+      <div style="margin-top: 0.25rem; font-family: var(--font-mono);">
+        Username: <strong>admin</strong><br>
+        Password: <strong>admin123</strong>
+      </div>
+      <div style="margin-top: 0.5rem; font-size: 0.775rem; color: #dc2626;">
+        ⚠️ For real college deployment, configure <code>ADMIN_PASSWORD</code> in your <code>.env</code> file before launching.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function togglePasswordVisibility() {
+    const input = document.getElementById('password');
+    const toggle = document.getElementById('pwd-toggle-text');
+    if (input.type === 'password') {
+      input.type = 'text';
+      toggle.textContent = 'Hide';
+    } else {
+      input.type = 'password';
+      toggle.textContent = 'Show';
+    }
+  }
+</script>
+{% endblock %}

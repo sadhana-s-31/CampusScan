@@ -1,0 +1,1 @@
+# CampusScan Automated Tests Package

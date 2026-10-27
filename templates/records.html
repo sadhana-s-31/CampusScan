@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Records & Import — CampusScan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Student Records Management</h1>
+    <p class="page-subtitle">Add individual students, bulk import student rosters via CSV/Excel, and manage student photos.</p>
+  </div>
+  <div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">
+      <span>📊</span> View Registration Dashboard
+    </a>
+  </div>
+</div>
+
+<!-- Two-Column Actions: Manual Entry & Bulk File Import -->
+<div class="grid-2" style="margin-bottom: 2rem;">
+  
+  <!-- Form A: Manual Student Entry -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title"><span>➕</span> Add Student Manually</h2>
+    </div>
+
+    <form method="POST" action="{{ url_for('add_student') }}" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="student_id" class="form-label">Student ID / Roll Number <span style="color: var(--danger);">*</span></label>
+        <input 
+          type="text" 
+          id="student_id" 
+          name="student_id" 
+          class="form-control" 
+          placeholder="e.g. 23CS011" 
+          required
+          style="text-transform: uppercase; font-family: var(--font-mono); font-weight: 600;"
+        >
+        <div class="form-help">Unique barcode or college ID. Must be unique.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="name" class="form-label">Student Full Name <span style="color: var(--danger);">*</span></label>
+        <input 
+          type="text" 
+          id="name" 
+          name="name" 
+          class="form-control" 
+          placeholder="e.g. Priya Sharma" 
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="photo" class="form-label">Student Photograph (Optional)</label>
+        <input 
+          type="file" 
+          id="photo" 
+          name="photo" 
+          class="form-control" 
+          accept=".jpg,.jpeg,.png,.webp"
+        >
+        <div class="form-help">Supported: JPG, JPEG, PNG, WEBP. If omitted, matching photo in <code>data/students/&lt;ID&gt;.jpg</code> will be used automatically.</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%;">
+        <span>💾</span> Save Student Record
+      </button>
+    </form>
+  </div>
+
+  <!-- Form B: Bulk Import Excel / CSV -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title"><span>📁</span> Import Excel or CSV</h2>
+    </div>
+
+    <form method="POST" action="{{ url_for('import_students') }}" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="file" class="form-label">Choose Spreadsheet File <span style="color: var(--danger);">*</span></label>
+        <input 
+          type="file" 
+          id="file" 
+          name="file" 
+          class="form-control" 
+          accept=".csv,.xlsx,.xls" 
+          required
+        >
+        <div class="form-help">
+          Accepted file types: <strong>.csv</strong>, <strong>.xlsx</strong>, <strong>.xls</strong> (Max 16 MB)
+        </div>
+      </div>
+
+      <div style="background: var(--bg-main); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem; font-size: 0.825rem; margin-bottom: 1.25rem;">
+        <strong>Recognized Column Headers:</strong>
+        <ul style="margin: 0.35rem 0 0.5rem 1.25rem; color: var(--text-muted);">
+          <li><strong>ID:</strong> <code>student_id</code>, <code>roll_no</code>, <code>roll_number</code>, <code>register_number</code>, <code>reg_no</code></li>
+          <li><strong>Name:</strong> <code>name</code>, <code>student_name</code>, <code>full_name</code></li>
+        </ul>
+        <span style="color: var(--success); font-weight: 600;">✓ Safe Import Guarantee:</span>
+        <span style="color: var(--text-muted);">Existing registration timestamps are <strong>never overwritten</strong> during imports.</span>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem;">
+        <button type="submit" class="btn btn-primary" style="flex: 1;">
+          <span>⬆️</span> Upload & Import
+        </button>
+      </div>
+
+      <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);">
+        <span>Test with pre-made samples:</span>
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+          <a href="/sample_data/sample_students.csv" class="chip" download>📥 sample_students.csv</a>
+          <a href="/sample_data/sample_students.xlsx" class="chip" download>📥 sample_students.xlsx</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<!-- Student Master Catalog Table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+  <div class="card-header" style="padding: 1.25rem 1.25rem 0.75rem; margin-bottom: 0;">
+    <div>
+      <h2 class="card-title"><span>📋</span> Master Student Database ({{ total_students }} Records)</h2>
+      <div style="font-size: 0.825rem; color: var(--text-muted); margin-top: 0.25rem;">
+        {% if missing_photo_count > 0 %}
+          <span style="color: var(--warning-text); font-weight: 600;">⚠️ {{ missing_photo_count }} student(s) currently missing photographs in <code>data/students/</code></span>
+        {% else %}
+          <span style="color: var(--success); font-weight: 600;">✓ All students have photographs linked!</span>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div>
+      <input 
+        type="text" 
+        id="records-search" 
+        class="form-control" 
+        placeholder="Filter records..." 
+        style="width: 220px; padding: 0.4rem 0.75rem; font-size: 0.85rem;"
+        oninput="filterRecordsTable(this.value)"
+      >
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table" id="records-table">
+      <thead>
+        <tr>
+          <th style="width: 60px;">Photo</th>
+          <th>Student ID</th>
+          <th>Student Full Name</th>
+          <th>Photo Status</th>
+          <th>Registration Status</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if students %}
+          {% for student in students %}
+            <tr class="record-row" data-search="{{ student.student_id|lower }} {{ student.name|lower }}">
+              <td>
+                <img 
+                  src="{{ student.photo_url }}" 
+                  alt="{{ student.name }}" 
+                  class="table-avatar"
+                  loading="lazy"
+                >
+              </td>
+              <td>
+                <strong style="font-family: var(--font-mono); color: var(--primary);">{{ student.student_id }}</strong>
+              </td>
+              <td>
+                <span style="font-weight: 600;">{{ student.name }}</span>
+              </td>
+              <td>
+                {% if student.has_photo %}
+                  <span class="badge badge-registered" title="Matched in data/students/">Photo Linked</span>
+                {% else %}
+                  <span class="badge badge-warning" title="No photo file in data/students/ matching ID">No Photo</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if student.is_registered %}
+                  <span class="badge badge-registered">Registered</span>
+                {% else %}
+                  <span class="badge badge-unregistered">Not Registered</span>
+                {% endif %}
+              </td>
+              <td style="text-align: right;">
+                <form method="POST" action="{{ url_for('delete_student', student_id=student.student_id) }}" style="display: inline;" onsubmit="return confirm('Delete student {{ student.student_id }} ({{ student.name }})?');">
+                  <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: #fecaca;" title="Delete student">
+                    <span>🗑️</span>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No student records found. Add a student above or upload a CSV/Excel file.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function filterRecordsTable(query) {
+    const q = (query || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#records-table tbody tr.record-row');
+    rows.forEach(row => {
+      const searchData = row.getAttribute('data-search') || '';
+      row.style.display = (q === '' || searchData.includes(q)) ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

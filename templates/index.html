@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+
+{% block title %}Barcode Scanner & Student Registration — CampusScan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Student ID Barcode Scanner</h1>
+    <p class="page-subtitle">Scan student ID card barcode or enter roll number manually to verify and register.</p>
+  </div>
+  <div class="camera-status-indicator" id="scanner-status-badge">
+    <span class="badge badge-unregistered" id="status-pill">● Camera Idle</span>
+  </div>
+</div>
+
+<div class="scanner-container">
+  
+  <!-- Left Column: Camera Viewfinder & Controls -->
+  <div>
+    <div class="card" style="padding: 1rem;">
+      <div class="viewfinder-card" id="viewfinder-container">
+        <!-- Video Stream for Barcode Scanner -->
+        <video id="scanner-video" playsinline muted></video>
+
+        <!-- Viewfinder Overlay Elements -->
+        <div class="scanner-overlay" id="scanner-overlay">
+          <div class="reticle-box">
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            <div class="laser-line" id="laser-line"></div>
+          </div>
+        </div>
+
+        <!-- Placeholder when Camera is stopped -->
+        <div class="scanner-placeholder" id="scanner-placeholder">
+          <div class="scanner-placeholder-icon">📷</div>
+          <h3 style="font-size: 1.15rem; margin-bottom: 0.5rem;">Camera Ready</h3>
+          <p style="font-size: 0.875rem; color: #94a3b8; max-width: 320px; margin: 0 auto 1.25rem;">
+            Align the student ID card barcode inside the frame. Code 128, Code 39, and QR codes are supported.
+          </p>
+          <button class="btn btn-primary" id="btn-start-camera">
+            <span>▶</span> Start Camera
+          </button>
+        </div>
+      </div>
+
+      <!-- Camera Action Buttons -->
+      <div class="camera-controls-bar">
+        <button class="btn btn-primary btn-sm" id="btn-toggle-camera">
+          <span>📷</span> <span id="camera-btn-text">Start Camera</span>
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-switch-camera" title="Switch between front and rear cameras">
+          <span>🔄</span> Switch Camera
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-reset-scanner">
+          <span>↻</span> Reset Scanner
+        </button>
+      </div>
+
+      <!-- Camera Permissions & Security Warning Callout -->
+      <div id="camera-error-box" style="display: none; margin-top: 1rem;" class="alert alert-warning">
+        <span id="camera-error-message">Camera error</span>
+      </div>
+
+      <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); background: var(--bg-subtle); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <strong>💡 Note for Mobile Devices:</strong> Mobile web browsers require a secure connection (HTTPS or <code>localhost</code>) to grant camera access. When accessing from a smartphone over Wi-Fi, refer to the HTTPS setup instructions in the README.
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Verification & Manual Lookup Card -->
+  <div>
+    <!-- Manual Entry Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title"><span>⌨️</span> Manual Student Lookup</h2>
+      </div>
+      
+      <form id="manual-lookup-form" onsubmit="event.preventDefault(); handleManualLookup();">
+        <div class="form-group">
+          <label for="manual-student-id" class="form-label">Student ID / Roll Number</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input 
+              type="text" 
+              id="manual-student-id" 
+              class="form-control" 
+              placeholder="e.g. 23CS001" 
+              autocomplete="off"
+              style="text-transform: uppercase; font-family: var(--font-mono); font-weight: 600;"
+            >
+            <button type="submit" class="btn btn-primary" id="btn-manual-lookup">
+              Search
+            </button>
+          </div>
+          <div class="form-help">Type or scan a student ID to retrieve records instantly.</div>
+        </div>
+
+        <!-- Quick-click test samples for instant testing -->
+        <div>
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Quick Test IDs:</span>
+          <div class="sample-chips">
+            <button type="button" class="chip" onclick="quickFill('23CS001')">23CS001</button>
+            <button type="button" class="chip" onclick="quickFill('23CS002')">23CS002</button>
+            <button type="button" class="chip" onclick="quickFill('23CS003')">23CS003</button>
+            <button type="button" class="chip" onclick="quickFill('23CS004')">23CS004</button>
+            <button type="button" class="chip" onclick="quickFill('UNKNOWN99')">UNKNOWN99</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Student Profile Verification Result Card -->
+    <div class="card" id="student-profile-container">
+      <div class="card-header">
+        <h2 class="card-title"><span>👤</span> Student Profile Verification</h2>
+        <span class="badge badge-unregistered" id="profile-status-badge">Awaiting Scan</span>
+      </div>
+
+      <div class="student-card" id="student-card-view">
+        <!-- Student Photo -->
+        <img 
+          src="{{ url_for('static', filename='images/default-profile.svg') }}" 
+          alt="Student Photograph" 
+          class="student-card-photo" 
+          id="student-photo"
+        >
+
+        <!-- Student Name & ID -->
+        <h3 class="student-card-name" id="student-name">No Student Scanned</h3>
+        <div class="student-card-id" id="student-id-display">—</div>
+
+        <!-- Registration Status Message -->
+        <div id="student-status-message" style="margin-bottom: 1.25rem; font-size: 0.9rem; color: var(--text-muted);">
+          Scan a barcode or enter roll number to begin registration.
+        </div>
+
+        <!-- Primary Registration Action Button -->
+        <button class="btn btn-success btn-lg" id="btn-register-student" style="width: 100%; display: none;" onclick="executeRegistration();">
+          <span>✓</span> Confirm & Register Student
+        </button>
+
+        <button class="btn btn-outline" id="btn-scan-another" style="width: 100%; display: none; margin-top: 0.5rem;" onclick="resetVerification();">
+          <span>🔄</span> Scan Another Student
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ======================================================================= -->
+<!-- MODAL 1: DUPLICATE REGISTRATION WARNING POPUP (Strict Requirement)      -->
+<!-- ======================================================================= -->
+<div class="modal-backdrop" id="duplicate-modal" role="dialog" aria-modal="true" aria-labelledby="dup-title">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-icon-badge warning">
+        <span>⚠️</span>
+      </div>
+      <h3 class="modal-title" id="dup-title" style="color: var(--warning-text);">You have already registered!</h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.35rem;">
+        This student has already completed registration. Duplicate registrations are prohibited.
+      </p>
+    </div>
+
+    <div class="modal-body">
+      <!-- Student Card in Duplicate Modal -->
+      <div class="modal-details-card">
+        <img src="{{ url_for('static', filename='images/default-profile.svg') }}" alt="Student" class="modal-photo" id="dup-modal-photo">
+        <div class="modal-details-info">
+          <div class="modal-student-name" id="dup-modal-name">Student Name</div>
+          <div class="modal-student-id" id="dup-modal-id">ID: 23CS001</div>
+          <span class="badge badge-warning" style="margin-top: 0.35rem;">Already Registered</span>
+        </div>
+      </div>
+
+      <!-- Previous Timestamp Warning Box -->
+      <div class="timestamp-callout">
+        <span>🕒</span>
+        <div>
+          <strong>Initial Registration Timestamp:</strong>
+          <div id="dup-modal-timestamp" style="font-weight: 600; font-family: var(--font-mono);">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline disabled" disabled title="Registration is disabled for already-registered students">
+        <span>🚫</span> Registration Locked
+      </button>
+      <button type="button" class="btn btn-primary" id="btn-close-duplicate-modal" onclick="closeDuplicateModal();">
+        <span>🔍</span> Scan Another Student
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ======================================================================= -->
+<!-- MODAL 2: REGISTRATION SUCCESS POPUP                                     -->
+<!-- ======================================================================= -->
+<div class="modal-backdrop" id="success-modal" role="dialog" aria-modal="true" aria-labelledby="success-title">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-icon-badge success">
+        <span>✓</span>
+      </div>
+      <h3 class="modal-title" id="success-title" style="color: var(--success);">Registration Successful!</h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.35rem;">
+        Student attendance and registration record have been safely recorded.
+      </p>
+    </div>
+
+    <div class="modal-body">
+      <div class="modal-details-card">
+        <img src="{{ url_for('static', filename='images/default-profile.svg') }}" alt="Student" class="modal-photo" id="success-modal-photo">
+        <div class="modal-details-info">
+          <div class="modal-student-name" id="success-modal-name">Student Name</div>
+          <div class="modal-student-id" id="success-modal-id">ID: 23CS001</div>
+          <span class="badge badge-registered" style="margin-top: 0.35rem;">Status: Registered</span>
+        </div>
+      </div>
+
+      <div class="timestamp-callout success">
+        <span>📅</span>
+        <div>
+          <strong>Registration Timestamp:</strong>
+          <div id="success-modal-timestamp" style="font-weight: 600; font-family: var(--font-mono);">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary btn-lg" style="width: 100%;" onclick="closeSuccessModal();">
+        <span>📷</span> Scan Next Student
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ======================================================================= -->
+<!-- MODAL 3: STUDENT NOT FOUND WARNING POPUP                                -->
+<!-- ======================================================================= -->
+<div class="modal-backdrop" id="notfound-modal" role="dialog" aria-modal="true" aria-labelledby="notfound-title">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-icon-badge danger">
+        <span>❓</span>
+      </div>
+      <h3 class="modal-title" id="notfound-title" style="color: var(--danger);">Student Not Found</h3>
+      <p style="font-size: 0.95rem; color: var(--text-main); margin-top: 0.75rem; font-weight: 500;" id="notfound-message">
+        Student not found. Please add the student record before registering.
+      </p>
+      <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+        Scanned Barcode ID: <strong id="notfound-id" style="font-family: var(--font-mono); color: var(--danger);">—</strong>
+      </div>
+    </div>
+
+    <div class="modal-body" style="background: var(--bg-main); border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
+      ⚠️ To preserve database integrity, incomplete profiles are never created automatically. Please upload or add the student record in Student Records.
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeNotFoundModal();">
+        Try Another ID
+      </button>
+      <a href="{{ url_for('records') }}" class="btn btn-primary">
+        <span>➕</span> Go to Student Records
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Local Vendored ZXing Barcode Scanning Library -->
+<script src="{{ url_for('static', filename='js/zxing.min.js') }}"></script>
+<!-- CampusScan Scanner Controller -->
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+{% endblock %}

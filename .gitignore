@@ -1,0 +1,26 @@
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+
+# SQLite WAL & temporary files
+data/students.db-shm
+data/students.db-wal
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

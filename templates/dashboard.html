@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard & Registration Analytics — CampusScan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Registration Dashboard</h1>
+    <p class="page-subtitle">Real-time attendance metrics, live student search, and CSV export.</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <button class="btn btn-outline btn-sm" onclick="window.location.reload();">
+      <span>🔄</span> Refresh
+    </button>
+    <a href="{{ url_for('export_csv') }}" class="btn btn-primary btn-sm">
+      <span>📥</span> Export to CSV
+    </a>
+  </div>
+</div>
+
+<!-- Summary KPI Cards -->
+<div class="grid-4" style="margin-bottom: 1.5rem;">
+  
+  <div class="kpi-card">
+    <div class="kpi-icon blue">👥</div>
+    <div>
+      <div class="kpi-value" id="kpi-total-students">{{ total_students }}</div>
+      <div class="kpi-label">Total Students</div>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-icon green">✓</div>
+    <div>
+      <div class="kpi-value" id="kpi-total-registered">{{ total_registered }}</div>
+      <div class="kpi-label">Total Registered</div>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-icon amber">⏳</div>
+    <div>
+      <div class="kpi-value" id="kpi-total-unregistered">{{ total_unregistered }}</div>
+      <div class="kpi-label">Not Yet Registered</div>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-icon purple">📈</div>
+    <div>
+      <div class="kpi-value" id="kpi-registration-rate">{{ registration_rate }}%</div>
+      <div class="kpi-label">Completion Rate</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Search & Filter Controls -->
+<div class="card" style="padding: 1.25rem; margin-bottom: 1.25rem;">
+  <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+    
+    <!-- Live Search Input -->
+    <div style="flex: 1; min-width: 260px;">
+      <input 
+        type="text" 
+        id="dashboard-search" 
+        class="form-control" 
+        placeholder="🔍 Search by student name or roll number..."
+        autocomplete="off"
+      >
+    </div>
+
+    <!-- Status Filter Buttons -->
+    <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+      <button class="btn btn-sm btn-outline filter-btn active" data-filter="all">All ({{ students|length }})</button>
+      <button class="btn btn-sm btn-outline filter-btn" data-filter="registered">Registered ({{ total_registered }})</button>
+      <button class="btn btn-sm btn-outline filter-btn" data-filter="unregistered">Pending ({{ total_unregistered }})</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Student Records Table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+  <div class="table-responsive">
+    <table class="table" id="students-table">
+      <thead>
+        <tr>
+          <th style="width: 60px;">Photo</th>
+          <th>Student ID / Roll No</th>
+          <th>Full Name</th>
+          <th>Status</th>
+          <th>Registration Date & Time</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if students %}
+          {% for student in students %}
+            <tr class="student-row" data-status="{% if student.is_registered %}registered{% else %}unregistered{% endif %}" data-search="{{ student.student_id|lower }} {{ student.name|lower }}">
+              <td>
+                <img 
+                  src="{{ student.photo_url }}" 
+                  alt="{{ student.name }}" 
+                  class="table-avatar"
+                  loading="lazy"
+                >
+              </td>
+              <td>
+                <strong style="font-family: var(--font-mono); color: var(--primary);">{{ student.student_id }}</strong>
+              </td>
+              <td>
+                <span style="font-weight: 600;">{{ student.name }}</span>
+              </td>
+              <td>
+                {% if student.is_registered %}
+                  <span class="badge badge-registered">Registered</span>
+                {% else %}
+                  <span class="badge badge-unregistered">Not Registered</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if student.is_registered %}
+                  <span style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--text-main);">{{ student.registered_at }}</span>
+                  {% if student.registered_by %}
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">via {{ student.registered_by }}</span>
+                  {% endif %}
+                {% else %}
+                  <span style="color: var(--text-subtle);">—</span>
+                {% endif %}
+              </td>
+              <td style="text-align: right;">
+                {% if student.is_registered %}
+                  <form method="POST" action="{{ url_for('reset_registration', student_id=student.student_id) }}" style="display: inline;" onsubmit="return confirm('Reset registration for {{ student.student_id }}? This allows re-scanning.');">
+                    <button type="submit" class="btn btn-sm btn-outline" style="color: var(--warning); border-color: #fde68a;" title="Reset registration to allow re-testing">
+                      <span>↺</span> Reset
+                    </button>
+                  </form>
+                {% else %}
+                  <button type="button" class="btn btn-sm btn-primary" onclick="quickRegister('{{ student.student_id }}');">
+                    <span>✓</span> Register
+                  </button>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No student records in the database yet. <a href="{{ url_for('records') }}">Import students or add them manually</a>.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  
+  <div id="no-matching-results" style="display: none; padding: 2.5rem; text-align: center; color: var(--text-muted);">
+    No students found matching your search.
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
