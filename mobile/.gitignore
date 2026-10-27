@@ -46,3 +46,12 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Unused platform directories
+/windows/
+/linux/
+/macos/
+
+# Package outputs
+*.apk
+*.aab
