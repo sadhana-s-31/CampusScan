@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 class LocalDatabaseService {
@@ -10,6 +11,24 @@ class LocalDatabaseService {
   LocalDatabaseService._internal();
 
   Database? _database;
+  String? _documentsDirPath;
+
+  Future<String> _getPhotosDirectoryPath() async {
+    if (_documentsDirPath == null) {
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        _documentsDirPath = dir.path;
+      } catch (_) {
+        final dbDirPath = await getDatabasesPath();
+        _documentsDirPath = dbDirPath;
+      }
+    }
+    final photosDir = Directory(p.join(_documentsDirPath!, 'student_photos'));
+    if (!await photosDir.exists()) {
+      await photosDir.create(recursive: true);
+    }
+    return photosDir.path;
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -92,9 +111,31 @@ class LocalDatabaseService {
     return db;
   }
 
-  /// Resolve student photo from bundled assets or known filenames
+  /// Resolve student photo from disk file, bundled assets, or known filenames
   String? resolveStudentPhotoAsset(String studentId, String? photoFilename) {
     final cleanId = studentId.trim().toUpperCase();
+
+    // 1. Direct file on disk
+    if (photoFilename != null && photoFilename.isNotEmpty) {
+      if (File(photoFilename).existsSync()) {
+        return photoFilename;
+      }
+      if (photoFilename.startsWith('assets/')) {
+        return photoFilename;
+      }
+    }
+
+    // 2. Check local student_photos directory
+    if (_documentsDirPath != null) {
+      for (final ext in ['.jpg', '.jpeg', '.png', '.webp']) {
+        final localFile = File(p.join(_documentsDirPath!, 'student_photos', '$cleanId$ext'));
+        if (localFile.existsSync()) {
+          return localFile.path;
+        }
+      }
+    }
+
+    // 3. Known bundled assets
     final knownPhotos = {
       '23CS001': 'assets/students/23CS001.jpg',
       '23CS002': 'assets/students/23CS002.jpg',
@@ -346,8 +387,12 @@ class LocalDatabaseService {
     }).toList();
   }
 
-  /// Add a student directly on the device
-  Future<bool> addStudent(String studentId, String name) async {
+  /// Add a student directly on the device with optional profile photo
+  Future<bool> addStudent(
+    String studentId,
+    String name, {
+    String? photoPath,
+  }) async {
     final cleanId = studentId.trim().toUpperCase();
     final cleanName = name.trim();
     if (cleanId.isEmpty || cleanName.isEmpty) return false;
@@ -355,11 +400,32 @@ class LocalDatabaseService {
     final db = await database;
     final now = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
+    String? savedPhotoPath;
+    if (photoPath != null && photoPath.isNotEmpty) {
+      final srcFile = File(photoPath);
+      if (await srcFile.exists()) {
+        try {
+          final photosDirPath = await _getPhotosDirectoryPath();
+          final ext = p.extension(photoPath).isNotEmpty ? p.extension(photoPath).toLowerCase() : '.jpg';
+          final destPath = p.join(photosDirPath, '$cleanId$ext');
+          final destFile = File(destPath);
+          if (await destFile.exists()) {
+            await destFile.delete();
+          }
+          await srcFile.copy(destPath);
+          savedPhotoPath = destPath;
+        } catch (_) {
+          savedPhotoPath = photoPath;
+        }
+      }
+    }
+
     final id = await db.insert(
       'students',
       {
         'student_id': cleanId,
         'name': cleanName,
+        'photo_filename': savedPhotoPath,
         'created_at': now,
         'updated_at': now,
       },

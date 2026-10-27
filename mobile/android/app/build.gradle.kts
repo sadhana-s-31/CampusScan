@@ -7,7 +7,6 @@ plugins {
 android {
     namespace = "com.example.campus_scan_mobile"
     compileSdk = 37
-    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -27,12 +26,6 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    packaging {
-        jniLibs {
-            keepDebugSymbols.add("**/*.so")
-        }
     }
 
     buildTypes {

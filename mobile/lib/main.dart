@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
 import 'services/local_database_service.dart';
 
@@ -801,55 +803,288 @@ class _ScannerHomePageState extends State<ScannerHomePage> {
   void _showAddStudentDialog({String initialId = ''}) {
     final idController = TextEditingController(text: initialId);
     final nameController = TextEditingController();
+    File? selectedPhoto;
+    final ImagePicker picker = ImagePicker();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Student Record'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: idController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Student ID',
-                hintText: 'e.g. 23CS011',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Student Name',
-                hintText: 'e.g. Priya Sharma',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final id = idController.text.trim().toUpperCase();
-              final name = nameController.text.trim();
-              if (id.isEmpty || name.isEmpty) {
-                showSnackBar('Please fill in both ID and Name', isError: true);
-                return;
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> pickPhoto(ImageSource source) async {
+            try {
+              final picked = await picker.pickImage(
+                source: source,
+                maxWidth: 1024,
+                maxHeight: 1024,
+                imageQuality: 85,
+              );
+              if (picked != null) {
+                setDialogState(() {
+                  selectedPhoto = File(picked.path);
+                });
               }
-              await _localDb.addStudent(id, name);
+            } catch (e) {
               if (context.mounted) {
-                Navigator.pop(context);
-                showSnackBar('Added student: $name ($id)', isError: false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to pick photo: $e'),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
               }
-              _manualIdController.text = id;
-              lookupStudent(id);
-            },
-            child: const Text('Add & Lookup'),
-          ),
-        ],
+            }
+          }
+
+          void showPhotoSourceModal() {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (sheetCtx) => SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const Text(
+                        'Select Profile Photo',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                      ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFEFF6FF),
+                          child: Icon(Icons.camera_alt_rounded, color: Color(0xFF2563EB)),
+                        ),
+                        title: const Text('Take Photo with Camera', style: TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Capture student portrait now'),
+                        onTap: () {
+                          Navigator.pop(sheetCtx);
+                          pickPhoto(ImageSource.camera);
+                        },
+                      ),
+                      ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFEFF6FF),
+                          child: Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB)),
+                        ),
+                        title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Pick existing photo from device'),
+                        onTap: () {
+                          Navigator.pop(sheetCtx);
+                          pickPhoto(ImageSource.gallery);
+                        },
+                      ),
+                      if (selectedPhoto != null)
+                        ListTile(
+                          leading: const CircleAvatar(
+                            backgroundColor: Color(0xFFFEE2E2),
+                            child: Icon(Icons.delete_outline_rounded, color: Colors.red),
+                          ),
+                          title: const Text('Remove Selected Photo', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            setDialogState(() {
+                              selectedPhoto = null;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF1E3A8A)),
+                SizedBox(width: 8),
+                Text('Add Student Record', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Photo Selection Area
+                  Center(
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        GestureDetector(
+                          onTap: showPhotoSourceModal,
+                          child: CircleAvatar(
+                            radius: 46,
+                            backgroundColor: const Color(0xFFEFF6FF),
+                            backgroundImage: selectedPhoto != null ? FileImage(selectedPhoto!) : null,
+                            child: selectedPhoto == null
+                                ? const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo_outlined, size: 30, color: Color(0xFF2563EB)),
+                                      SizedBox(height: 4),
+                                      Text('Photo', style: TextStyle(fontSize: 11, color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: showPhotoSourceModal,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: selectedPhoto != null ? Colors.redAccent : const Color(0xFF2563EB),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: Icon(
+                              selectedPhoto != null ? Icons.edit : Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: showPhotoSourceModal,
+                    icon: Icon(selectedPhoto != null ? Icons.change_circle_outlined : Icons.upload_file, size: 16),
+                    label: Text(
+                      selectedPhoto != null ? 'Change Profile Photo' : 'Upload Profile Photo',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Student ID Field
+                  TextField(
+                    controller: idController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: 'Student ID *',
+                      hintText: 'e.g. 23CS011',
+                      prefixIcon: const Icon(Icons.badge_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Student Name Field
+                  TextField(
+                    controller: nameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: 'Student Full Name *',
+                      hintText: 'e.g. Priya Sharma',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E3A8A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  final id = idController.text.trim().toUpperCase();
+                  final name = nameController.text.trim();
+                  if (id.isEmpty || name.isEmpty) {
+                    showSnackBar('Please fill in both Student ID and Name', isError: true);
+                    return;
+                  }
+
+                  if (_isOfflineMode) {
+                    // Save to local embedded SQLite database
+                    final success = await _localDb.addStudent(
+                      id,
+                      name,
+                      photoPath: selectedPhoto?.path,
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(dialogCtx);
+                      if (success) {
+                        showSnackBar(
+                          'Student $name ($id) added successfully${selectedPhoto != null ? ' with photo' : ''}!',
+                          isError: false,
+                        );
+                      } else {
+                        showSnackBar('Could not add student $id', isError: true);
+                      }
+                    }
+                  } else {
+                    // Upload to external server via API
+                    try {
+                      final cleanBase = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+                      final uri = Uri.parse('$cleanBase/api/students/add');
+                      final request = http.MultipartRequest('POST', uri);
+                      request.fields['student_id'] = id;
+                      request.fields['name'] = name;
+                      if (selectedPhoto != null) {
+                        request.files.add(await http.MultipartFile.fromPath('photo', selectedPhoto!.path));
+                      }
+
+                      final streamedResponse = await request.send().timeout(const Duration(seconds: 15));
+                      final response = await http.Response.fromStream(streamedResponse);
+                      final data = jsonDecode(response.body);
+
+                      if (response.statusCode == 201 || data['success'] == true) {
+                        await _localDb.addStudent(id, name, photoPath: selectedPhoto?.path);
+                        if (context.mounted) {
+                          Navigator.pop(dialogCtx);
+                          showSnackBar(
+                            'Student $name ($id) uploaded to server${selectedPhoto != null ? ' with photo' : ''}!',
+                            isError: false,
+                          );
+                        }
+                      } else {
+                        showSnackBar(data['message'] ?? 'Failed to upload student', isError: true);
+                        return;
+                      }
+                    } catch (e) {
+                      showSnackBar('Server upload error: $e. Saved to local DB.', isError: true);
+                      await _localDb.addStudent(id, name, photoPath: selectedPhoto?.path);
+                      if (context.mounted) {
+                        Navigator.pop(dialogCtx);
+                      }
+                    }
+                  }
+
+                  _manualIdController.text = id;
+                  lookupStudent(id);
+                },
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Save & Lookup'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -887,12 +1122,18 @@ class _ScannerHomePageState extends State<ScannerHomePage> {
   // --- Helper Methods ---
 
   Widget _buildStudentAvatar(Map<String, dynamic> student, {double radius = 28}) {
-    final photoAsset = student['photo_asset'] as String?;
+    final photoAsset = student['photo_asset'] as String? ?? student['photo_filename'] as String?;
     final photoUrl = student['photo_url'] as String? ?? (_isOfflineMode ? null : _resolvePhotoUrl(student['student_id'] ?? ''));
 
     ImageProvider? imageProvider;
     if (photoAsset != null && photoAsset.isNotEmpty) {
-      imageProvider = AssetImage(photoAsset);
+      if (photoAsset.startsWith('assets/')) {
+        imageProvider = AssetImage(photoAsset);
+      } else if (File(photoAsset).existsSync()) {
+        imageProvider = FileImage(File(photoAsset));
+      } else {
+        imageProvider = AssetImage(photoAsset);
+      }
     } else if (photoUrl != null && photoUrl.isNotEmpty && !_isOfflineMode) {
       imageProvider = NetworkImage(photoUrl);
     }
